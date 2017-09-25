@@ -61,3 +61,10 @@ type Metadata struct {
 	Quiet      bool
 	Verbose    bool
 }
+
+// Passed contains the passed flags and positional arguments for a Command.
+type Passed struct {
+	// TODO: This should be a map from task to args?
+	Args  []string
+	Flags map[string]string
+}

@@ -1,11 +1,11 @@
 package appcli
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
-	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 
 	"github.com/rliebz/tusk/config"
@@ -61,8 +61,10 @@ func newFlagApp(cfgText []byte) (*cli.App, error) {
 	}
 
 	app := newSilentApp()
-	app.Metadata = make(map[string]interface{})
-	app.Metadata["flagsPassed"] = make(map[string]string)
+	app.Metadata = map[string]interface{}{
+		"argsPassed":  cli.Args{},
+		"flagsPassed": make(map[string]string),
+	}
 
 	if err = addTasks(app, cfg, createMetadataBuildCommand); err != nil {
 		return nil, err
@@ -82,9 +84,19 @@ func NewApp(cfgText []byte) (*cli.App, error) {
 		return nil, err
 	}
 
-	passed, ok := flagApp.Metadata["flagsPassed"].(map[string]string)
+	argsPassed, ok := flagApp.Metadata["argsPassed"].(cli.Args)
 	if !ok {
-		return nil, errors.New("could not read flags from metadata")
+		return nil, fmt.Errorf("args passed are of wrong type, %#v", argsPassed)
+	}
+
+	flagsPassed, ok := flagApp.Metadata["flagsPassed"].(map[string]string)
+	if !ok {
+		return nil, fmt.Errorf("flags passed are of wrong type, %#v", flagsPassed)
+	}
+
+	passed := config.Passed{
+		Args:  argsPassed,
+		Flags: flagsPassed,
 	}
 
 	var taskName string

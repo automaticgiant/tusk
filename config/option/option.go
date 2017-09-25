@@ -10,7 +10,18 @@ import (
 	"github.com/rliebz/tusk/config/when"
 )
 
-// Option represents an abstract command line option.
+// Arg represents a command-line argument.
+// An Arg is passed by position and is always required.
+type Arg struct {
+	Type  string
+	Usage string
+
+	// Computed members not specified in yaml file
+	Value string `yaml:"-"`
+}
+
+// Option represents an abstract command-line option.
+// Options are passed by flags on the command line.
 type Option struct {
 	Short    string
 	Type     string
@@ -23,9 +34,9 @@ type Option struct {
 	DefaultValues valueList `yaml:"default"`
 
 	// Computed members not specified in yaml file
-	Name   string `yaml:"-"`
-	Passed string `yaml:"-"`
-	Vars   map[string]string
+	Name   string            `yaml:"-"`
+	Passed string            `yaml:"-"`
+	Vars   map[string]string `yaml:"-"`
 }
 
 // Dependencies returns a list of options that are required explicitly.

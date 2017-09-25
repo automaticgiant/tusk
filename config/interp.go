@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/rliebz/tusk/config/option"
@@ -22,18 +23,56 @@ import (
 //
 // taskName is the name of the task being run. This is used to determine the
 // list of options which require interpolation.
-func Interpolate(cfgText []byte, passed map[string]string, taskName string) ([]byte, map[string]string, error) {
+func Interpolate(cfgText []byte, passed Passed, taskName string) ([]byte, map[string]string, error) {
 
 	options := make(map[string]string)
 
-	ordered, err := getOrderedOpts(cfgText)
+	cfgText, err := interpolateArgs(cfgText, passed, taskName, options)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	required, err := getRequiredOpts(cfgText, taskName)
+	cfgText, err = interpolateOpts(cfgText, passed, taskName, options)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	return interp.Escape(cfgText), options, nil
+}
+
+func interpolateArgs(cfgText []byte, passed Passed, taskName string, options map[string]string) ([]byte, error) {
+	args, err := getOrderedArgs(cfgText, taskName)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(args) != len(passed.Args) {
+		// TODO: Better error message
+		return nil, errors.New("incorrect number of args passed")
+	}
+
+	for i, argName := range args {
+		value := passed.Args[i]
+		options[argName] = value
+
+		cfgText, err = interp.Interpolate(cfgText, argName, value)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return cfgText, nil
+}
+
+func interpolateOpts(cfgText []byte, passed Passed, taskName string, options map[string]string) ([]byte, error) {
+	ordered, err := getOrderedOpts(cfgText)
+	if err != nil {
+		return nil, err
+	}
+
+	required, err := getRequiredOpts(cfgText, taskName)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, optName := range ordered {
@@ -44,19 +83,19 @@ func Interpolate(cfgText []byte, passed map[string]string, taskName string) ([]b
 
 			value, err := getOptValue(cfgText, passed, options, optName, taskName)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 
 			options[optName] = value
 
 			cfgText, err = interp.Interpolate(cfgText, optName, value)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 		}
 	}
 
-	return interp.Escape(cfgText), options, nil
+	return cfgText, nil
 }
 
 func getRequiredOpts(cfgText []byte, taskName string) ([]string, error) {
@@ -86,6 +125,42 @@ func getRequiredOpts(cfgText []byte, taskName string) ([]string, error) {
 	var output []string
 	for _, opt := range required {
 		output = append(output, opt.Name)
+	}
+
+	return output, nil
+}
+
+func getOrderedArgs(cfgText []byte, taskName string) ([]string, error) {
+
+	ordered := new(struct {
+		Tasks yaml.MapSlice
+	})
+
+	if err := yaml.Unmarshal(cfgText, ordered); err != nil {
+		return nil, err
+	}
+
+	var output []string
+
+	for _, mapslice := range ordered.Tasks {
+		if mapslice.Key.(string) != taskName {
+			continue
+		}
+
+		for _, ms := range mapslice.Value.(yaml.MapSlice) {
+			name := ms.Key.(string)
+			if name != "args" {
+				continue
+			}
+
+			for _, arg := range ms.Value.(yaml.MapSlice) {
+				name, ok := arg.Key.(string)
+				if !ok {
+					return nil, fmt.Errorf("failed to assert name  as string: %v", mapslice.Key)
+				}
+				output = append(output, name)
+			}
+		}
 	}
 
 	return output, nil
@@ -131,7 +206,7 @@ func getOrderedOpts(cfgText []byte) ([]string, error) {
 
 func getOptValue(
 	cfgText []byte,
-	passed map[string]string,
+	passed Passed,
 	options map[string]string,
 	optName string,
 	taskName string,
@@ -158,7 +233,7 @@ func getOptValue(
 
 	opt.Vars = options
 
-	valuePassed, ok := passed[optName]
+	valuePassed, ok := passed.Flags[optName]
 	if ok {
 		opt.Passed = valuePassed
 	}

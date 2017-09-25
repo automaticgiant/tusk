@@ -11,6 +11,7 @@ import (
 
 // Task is a single task to be run by CLI.
 type Task struct {
+	Args        map[string]*option.Arg    `yaml:",omitempty"`
 	Options     map[string]*option.Option `yaml:",omitempty"`
 	Run         run.List
 	Usage       string `yaml:",omitempty"`

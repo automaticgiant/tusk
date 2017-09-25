@@ -444,7 +444,11 @@ func TestInterpolate(t *testing.T) {
 			tt.testCase, tt.cfgText, tt.passed, tt.taskName,
 		)
 
-		actualBytes, _, err := Interpolate([]byte(tt.cfgText), tt.passed, tt.taskName)
+		passed := Passed{
+			Flags: tt.passed,
+		}
+
+		actualBytes, _, err := Interpolate([]byte(tt.cfgText), passed, tt.taskName)
 		if err != nil {
 			t.Errorf("%s\nunexpected error: %s", errString, err)
 			continue
@@ -479,7 +483,7 @@ tasks:
       task: one
   `
 
-	if _, _, err := Interpolate([]byte(cfgText), nil, "foo"); err == nil {
+	if _, _, err := Interpolate([]byte(cfgText), Passed{}, "foo"); err == nil {
 		t.Errorf("Interpolate(cfgText, ...): expected error, got nil")
 	}
 
